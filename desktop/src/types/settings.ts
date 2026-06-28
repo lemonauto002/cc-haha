@@ -97,6 +97,33 @@ export type DesktopTerminalSettings = {
   customShellPath: string
 }
 
+/**
+ * What the assistant's turn-end response is read aloud as.
+ * - `off`: never speak
+ * - `lastText`: read the last assistant text message (code blocks stripped)
+ * - `shortOnly`: read only when the response is short (no long/code-heavy output)
+ */
+export type VoiceSpeakMode = 'off' | 'lastText' | 'shortOnly'
+
+/**
+ * Volcano (火山方舟 Agent Plan) voice settings. The API key is stored in user
+ * settings (same precedent as web-search keys) and passed from the renderer to
+ * the Electron main process per voice call.
+ */
+export type VoiceSettings = {
+  /** Master toggle: shows the mic button and enables voice mode. */
+  enabled: boolean
+  apiKey: string
+  asrResourceId: string
+  ttsResourceId: string
+  speaker: string
+  /** Send the transcribed text immediately instead of inserting it into the composer. */
+  autoSend: boolean
+  /** Read assistant responses aloud via TTS on turn end. */
+  ttsEnabled: boolean
+  speakMode: VoiceSpeakMode
+}
+
 export type ModelInfo = {
   id: string
   name: string
@@ -124,6 +151,7 @@ export type UserSettings = {
   }
   language?: string
   desktopTerminal?: Partial<DesktopTerminalSettings>
+  voice?: VoiceSettings
   [key: string]: unknown
 }
 

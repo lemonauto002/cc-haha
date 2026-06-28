@@ -16,6 +16,7 @@ describe('desktop host contract', () => {
       shell: false,
       terminal: false,
       updates: false,
+      voice: false,
       windowControls: false,
       zoom: false,
     })

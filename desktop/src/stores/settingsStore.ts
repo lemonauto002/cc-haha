@@ -22,6 +22,7 @@ import {
   type ThemeMode,
   type UpdateProxyMode,
   type UpdateProxySettings,
+  type VoiceSettings,
   type WebSearchSettings,
 } from '../types/settings'
 import type { TraceCaptureSettings } from '../types/trace'
@@ -75,6 +76,7 @@ type SettingsStore = {
   skipWebFetchPreflight: boolean
   desktopNotificationsEnabled: boolean
   desktopTerminal: DesktopTerminalSettings
+  voice: VoiceSettings
   webSearch: WebSearchSettings
   updateProxy: UpdateProxySettings
   network: NetworkSettings
@@ -105,6 +107,7 @@ type SettingsStore = {
   setSkipWebFetchPreflight: (enabled: boolean) => Promise<void>
   setDesktopNotificationsEnabled: (enabled: boolean) => Promise<void>
   setDesktopTerminal: (settings: DesktopTerminalSettings) => Promise<void>
+  setVoice: (settings: Partial<VoiceSettings>) => Promise<void>
   setWebSearch: (settings: WebSearchSettings) => Promise<void>
   setUpdateProxy: (settings: UpdateProxySettings) => Promise<void>
   setNetwork: (settings: NetworkSettings) => Promise<void>
@@ -141,6 +144,17 @@ const DEFAULT_H5_ACCESS_SETTINGS: H5AccessSettings = {
 const DEFAULT_DESKTOP_TERMINAL_SETTINGS: DesktopTerminalSettings = {
   startupShell: 'system',
   customShellPath: '',
+}
+
+const DEFAULT_VOICE_SETTINGS: VoiceSettings = {
+  enabled: false,
+  apiKey: '',
+  asrResourceId: 'volc.seedasr.sauc.duration',
+  ttsResourceId: 'seed-tts-2.0',
+  speaker: 'zh_female_vv_uranus_bigtts',
+  autoSend: true,
+  ttsEnabled: false,
+  speakMode: 'lastText',
 }
 
 const DEFAULT_UPDATE_PROXY_SETTINGS: UpdateProxySettings = {
@@ -191,6 +205,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   skipWebFetchPreflight: true,
   desktopNotificationsEnabled: false,
   desktopTerminal: DEFAULT_DESKTOP_TERMINAL_SETTINGS,
+  voice: DEFAULT_VOICE_SETTINGS,
   webSearch: { mode: 'auto', tavilyApiKey: '', braveApiKey: '' },
   updateProxy: DEFAULT_UPDATE_PROXY_SETTINGS,
   network: DEFAULT_NETWORK_SETTINGS,
@@ -246,6 +261,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         skipWebFetchPreflight: userSettings.skipWebFetchPreflight !== false,
         desktopNotificationsEnabled: userSettings.desktopNotificationsEnabled === true,
         desktopTerminal: normalizeDesktopTerminalSettings(userSettings.desktopTerminal),
+        voice: normalizeVoiceSettings(userSettings.voice),
         webSearch: normalizeWebSearchSettings(userSettings.webSearch),
         updateProxy: normalizeUpdateProxySettings(userSettings.updateProxy),
         network: normalizeNetworkSettings(userSettings.network),
@@ -444,6 +460,18 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     }
   },
 
+  setVoice: async (settings) => {
+    const prev = get().voice
+    const next = normalizeVoiceSettings({ ...prev, ...settings })
+    set({ voice: next })
+    try {
+      await settingsApi.updateUser({ voice: next })
+    } catch (error) {
+      set({ voice: prev })
+      throw error
+    }
+  },
+
   setWebSearch: async (webSearch) => {
     const prev = get().webSearch
     const next = normalizeWebSearchSettings(webSearch)
@@ -604,6 +632,28 @@ function normalizeWebSearchSettings(settings: WebSearchSettings | undefined): We
     mode: settings?.mode ?? 'auto',
     tavilyApiKey: settings?.tavilyApiKey ?? '',
     braveApiKey: settings?.braveApiKey ?? '',
+  }
+}
+
+function normalizeVoiceSettings(settings: Partial<VoiceSettings> | undefined): VoiceSettings {
+  const speakMode = settings?.speakMode === 'off' || settings?.speakMode === 'shortOnly'
+    ? settings.speakMode
+    : 'lastText'
+  return {
+    enabled: settings?.enabled === true,
+    apiKey: typeof settings?.apiKey === 'string' ? settings.apiKey : '',
+    asrResourceId: typeof settings?.asrResourceId === 'string' && settings.asrResourceId.trim()
+      ? settings.asrResourceId
+      : DEFAULT_VOICE_SETTINGS.asrResourceId,
+    ttsResourceId: typeof settings?.ttsResourceId === 'string' && settings.ttsResourceId.trim()
+      ? settings.ttsResourceId
+      : DEFAULT_VOICE_SETTINGS.ttsResourceId,
+    speaker: typeof settings?.speaker === 'string' && settings.speaker.trim()
+      ? settings.speaker
+      : DEFAULT_VOICE_SETTINGS.speaker,
+    autoSend: settings?.autoSend !== false,
+    ttsEnabled: settings?.ttsEnabled === true,
+    speakMode,
   }
 }
 

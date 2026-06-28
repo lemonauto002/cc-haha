@@ -16,6 +16,7 @@ const browserCapabilities: DesktopHostCapabilities = {
   shell: false,
   terminal: false,
   updates: false,
+  voice: false,
   windowControls: false,
   zoom: false,
 }
@@ -255,6 +256,17 @@ export const browserHost: DesktopHost = {
   zoom: {
     async set() {
       unsupported('Native app zoom')
+    },
+  },
+  voice: {
+    async transcribe() {
+      unsupported('Volcano ASR')
+    },
+    async synthesize() {
+      unsupported('Volcano TTS')
+    },
+    async health() {
+      return { asr: false, tts: false }
     },
   },
 }

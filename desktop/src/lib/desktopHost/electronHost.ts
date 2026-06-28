@@ -70,6 +70,7 @@ export function createElectronHost(bridge: ElectronHostBridge): DesktopHost {
       shell: true,
       terminal: true,
       updates: true,
+      voice: true,
       windowControls: true,
       zoom: true,
     },
@@ -161,6 +162,11 @@ export function createElectronHost(bridge: ElectronHostBridge): DesktopHost {
     },
     zoom: {
       set: level => invoke(ELECTRON_IPC_CHANNELS.zoomSet, level),
+    },
+    voice: {
+      transcribe: input => invoke(ELECTRON_IPC_CHANNELS.voiceTranscribe, input),
+      synthesize: input => invoke(ELECTRON_IPC_CHANNELS.voiceSynthesize, input),
+      health: input => invoke(ELECTRON_IPC_CHANNELS.voiceHealth, input),
     },
   }
 }

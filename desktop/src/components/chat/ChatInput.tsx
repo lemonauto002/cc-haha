@@ -43,6 +43,11 @@ import {
 } from '../../lib/composerAttachments'
 import { useComposerFileDrop } from './useComposerFileDrop'
 import { shouldSubmitOnEnter } from './sendShortcut'
+import { getDesktopHost } from '../../lib/desktopHost'
+import type { VoiceCredentials } from '../../lib/desktopHost/types'
+import { useVoiceInput } from '../../voice/useVoiceInput'
+import { useVoiceOutput } from '../../voice/useVoiceOutput'
+import { VoiceButton } from '../voice/VoiceButton'
 
 type GitInfo = SessionGitInfo
 
@@ -594,8 +599,8 @@ export function ChatInput({ variant = 'default', compact = false }: ChatInputPro
     }
   }, [activeTabId, replaceEmptySession, t])
 
-  const handleSubmit = async () => {
-    const text = input.trim()
+  const handleSubmit = async (overrideText?: string) => {
+    const text = (overrideText ?? input).trim()
     if ((!text && ((!attachments.length && !hasWorkspaceReferences) || isMemberSession)) || isWorkspaceMissing) return
 
     if (pendingSlashUiAction?.type === 'panel') {
@@ -719,9 +724,81 @@ export function ChatInput({ variant = 'default', compact = false }: ChatInputPro
     setLocalSlashPanel(null)
   }
 
+  const [voiceMode, setVoiceMode] = useState(false)
+  const voiceSettings = useSettingsStore((state) => state.voice)
+  const voiceCapable = getDesktopHost().capabilities.voice
+  const voiceCredentials = useMemo<VoiceCredentials | null>(
+    () => voiceSettings.apiKey
+      ? {
+          apiKey: voiceSettings.apiKey,
+          asrResourceId: voiceSettings.asrResourceId,
+          ttsResourceId: voiceSettings.ttsResourceId,
+        }
+      : null,
+    [voiceSettings.apiKey, voiceSettings.asrResourceId, voiceSettings.ttsResourceId],
+  )
+
+  const handleVoiceText = useCallback((text: string) => {
+    if (voiceSettings.autoSend) {
+      void handleSubmit(text)
+      return
+    }
+    const previous = inputRef.current
+    setComposerInput(previous ? `${previous.trimEnd()} ${text}` : text)
+    requestAnimationFrame(() => {
+      const el = textareaRef.current
+      el?.focus()
+      const end = inputRef.current.length
+      el?.setSelectionRange(end, end)
+    })
+  }, [handleSubmit, setComposerInput, voiceSettings.autoSend])
+
+  const voiceInput = useVoiceInput({ credentials: voiceCredentials, onText: handleVoiceText })
+
+  useVoiceOutput({
+    sessionId: activeTabId,
+    enabled: voiceSettings.ttsEnabled && voiceSettings.speakMode !== 'off',
+    credentials: voiceCredentials,
+    speaker: voiceSettings.speaker,
+    speakMode: voiceSettings.speakMode,
+  })
+
+  const voiceEnabled = voiceSettings.enabled && voiceCapable && !isMemberSession
+
+  // Global push-to-talk: while voice mode is armed, bare Space toggles recording
+  // from anywhere in the chat view — no need to focus the composer. A ref holds
+  // the latest state so the window listener stays stable across renders.
+  const pushToTalkRef = useRef<() => void>(() => {})
+  pushToTalkRef.current = () => {
+    if (voiceInput.isTranscribing) return
+    if (fileSearchOpen || slashMenuOpen || localSlashPanel) return
+    // Don't hijack Space while the user is editing another text field
+    // (e.g. a queued-message edit box). The composer textarea itself is fine.
+    const active = document.activeElement as HTMLElement | null
+    const tag = active?.tagName
+    if (tag === 'INPUT' || active?.isContentEditable) return
+    if (tag === 'TEXTAREA' && active !== textareaRef.current) return
+    void voiceInput.toggle()
+  }
+  useEffect(() => {
+    if (!voiceMode) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== ' ') return
+      if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return
+      if (event.isComposing || event.keyCode === 229) return
+      event.preventDefault()
+      pushToTalkRef.current()
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [voiceMode])
+
   const handleKeyDown = (event: React.KeyboardEvent) => {
     // Ignore key events during IME composition (e.g. Chinese input method)
     if (composingRef.current || event.nativeEvent.isComposing || event.keyCode === 229) return
+
+    // Push-to-talk on Space is handled by a window-level listener while voice
+    // mode is armed (see the effect below), so it works without composer focus.
 
     // Route file search navigation keys to FileSearchMenu
     if (fileSearchOpen) {
@@ -1263,6 +1340,30 @@ export function ChatInput({ variant = 'default', compact = false }: ChatInputPro
                   </div>
 
                   <PermissionModeSelector compact={useCompactControls} />
+
+                  {voiceEnabled && (
+                    <VoiceButton
+                      armed={voiceMode}
+                      isRecording={voiceInput.isRecording}
+                      isTranscribing={voiceInput.isTranscribing}
+                      error={voiceInput.error}
+                      compact={useCompactControls}
+                      isMobile={isMobileComposer}
+                      onClick={(event) => {
+                        if (!voiceInput.supported) return
+                        if (voiceInput.isRecording) {
+                          void voiceInput.toggle()
+                          return
+                        }
+                        setVoiceMode((value) => !value)
+                        // Blur the button + focus the textarea so the next Space
+                        // is captured by the keydown handler (push-to-talk),
+                        // instead of re-activating this button and disarming.
+                        event.currentTarget.blur()
+                        requestAnimationFrame(() => textareaRef.current?.focus())
+                      }}
+                    />
+                  )}
                 </>
               )}
             </div>
@@ -1283,7 +1384,7 @@ export function ChatInput({ variant = 'default', compact = false }: ChatInputPro
                 <ModelSelector runtimeKey={activeTabId} disabled={isActive} compact={useCompactControls} />
               )}
               <button
-                onClick={!isMemberSession && isActive ? () => stopGeneration(activeTabId!) : handleSubmit}
+                onClick={!isMemberSession && isActive ? () => stopGeneration(activeTabId!) : () => void handleSubmit()}
                 disabled={!isMemberSession && isActive ? false : !canSubmit}
                 aria-label={!isMemberSession && isActive ? t('common.stop') : isMemberSession ? t('common.send') : t('common.run')}
                 title={

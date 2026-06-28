@@ -97,6 +97,16 @@ Every feature, bugfix, and behavior change must ship with proof that matches the
 - Text must fit in its container on mobile and desktop viewports. Stable controls such as tab bars, toolbars, status chips, and buttons should not resize or shift when labels, hover states, or loading text change.
 - For visible UI changes, validate with an actual browser/desktop smoke path when feasible and include screenshots or a short visual-evidence note in the handoff.
 
+### Voice input / response playback (Volcano)
+Voice is an Electron-only capability: ASR must run in the main process (browser/renderer `WebSocket` cannot set the custom Volcano auth headers), and TTS is plain HTTPS.
+
+- Main-process protocol ports live in `desktop/electron/services/`: `voiceVolcanoProtocol.ts` (pure, no `ws`/`fetch` — unit-tested byte framing), `volcanoAsr.ts` (WebSocket orchestration via the externalized `ws` package), `volcanoTts.ts` (streaming `fetch`). They are ported verbatim from the VoiceMode Python proxies in `~/.voicemode/services/volc-{asr,tts}/`.
+- IPC: `desktop:voice:{transcribe,synthesize,health}` channels; the renderer passes Volcano credentials per call. The host contract is the `voice` capability in `desktop/src/lib/desktopHost/types.ts`.
+- Renderer: `desktop/src/voice/{useVoiceRecorder,useVoiceInput,useVoiceOutput}.ts` and `desktop/src/components/voice/VoiceButton.tsx`; integrated into `desktop/src/components/chat/ChatInput.tsx` (mic button + push-to-talk on Space when armed). Settings UI is `desktop/src/pages/VoiceSettings.tsx` under the Voice tab.
+- Credentials: the Volcano API key is stored in user settings (same precedent as web-search keys) and flows renderer → IPC opts → main. It is never written to logs.
+- macOS mic: declared via `build.mac.extendInfo.NSMicrophoneUsageDescription` in `desktop/package.json`. The Electron build is not sandboxed, so no extra entitlement is required.
+- Verify: `voiceVolcanoProtocol.test.ts` covers the binary framing deterministically; full ASR/TTS need live Volcano credentials, so record that as the explicit blocker when claiming end-to-end readiness.
+
 ## Release Workflow
 - Desktop releases are built remotely by GitHub Actions from tags matching `v*.*.*`; do not upload local build artifacts as the release source of truth.
 - The release workflow `.github/workflows/release-desktop.yml` runs a non-live PR-quality preflight, validates that the tag matches `desktop/package.json`, loads `release-notes/vX.Y.Z.md`, builds sidecars, and packages the Electron desktop app across the matrix.

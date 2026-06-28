@@ -14,6 +14,7 @@ export type DesktopHostCapability =
   | 'shell'
   | 'terminal'
   | 'updates'
+  | 'voice'
   | 'windowControls'
   | 'zoom'
 
@@ -141,6 +142,43 @@ export type PortableDirDetection = {
   hasData: boolean
 }
 
+// Volcano (火山) voice credentials. The renderer supplies these per call from
+// the voice settings; the Electron main process never needs to read server
+// config directly.
+export type VoiceCredentials = {
+  apiKey: string
+  asrResourceId?: string
+  ttsResourceId?: string
+}
+
+/** Raw 16kHz/mono/16-bit PCM captured in the renderer (no WAV container). */
+export type VoiceTranscribeInput = VoiceCredentials & {
+  pcm: ArrayBuffer
+  sampleRate?: number
+}
+
+export type VoiceTranscribeResult = {
+  text: string
+}
+
+export type VoiceSynthesizeInput = VoiceCredentials & {
+  text: string
+  speaker?: string
+  format?: 'mp3' | 'pcm' | 'wav'
+}
+
+export type VoiceSynthesizeResult = {
+  audio: ArrayBuffer
+  mime: string
+}
+
+export type VoiceHealthInput = VoiceCredentials
+
+export type VoiceHealthResult = {
+  asr: boolean
+  tts: boolean
+}
+
 export type DesktopHost = {
   kind: DesktopHostKind
   isDesktop: boolean
@@ -230,6 +268,11 @@ export type DesktopHost = {
   }
   zoom: {
     set(level: number): Promise<void>
+  }
+  voice: {
+    transcribe(input: VoiceTranscribeInput): Promise<VoiceTranscribeResult>
+    synthesize(input: VoiceSynthesizeInput): Promise<VoiceSynthesizeResult>
+    health(input: VoiceHealthInput): Promise<VoiceHealthResult>
   }
 }
 

@@ -33,6 +33,13 @@ import { logNotificationSmokeRendererAck, scheduleNotificationSmoke } from './se
 import { normalizeZoomFactor } from './services/zoom'
 import { resolveRendererEntry } from './services/rendererEntry'
 import { writeWindowSmokeSnapshot } from './services/windowSmoke'
+import { transcribeWithVolcano } from './services/volcanoAsr'
+import { synthesizeWithVolcano, volcanoVoiceHealth } from './services/volcanoTts'
+import type {
+  VoiceHealthInput,
+  VoiceSynthesizeInput,
+  VoiceTranscribeInput,
+} from '../src/lib/desktopHost/types'
 import {
   installWindowLifecycle,
   readWindowState,
@@ -339,6 +346,12 @@ function registerIpcHandlers() {
   })
   registerHandler(ELECTRON_IPC_CHANNELS.adaptersRestartSidecar, () => getServerRuntime().restartAdaptersSidecars())
   registerHandler(ELECTRON_IPC_CHANNELS.zoomSet, (event, payload) => currentWindow(event).webContents.setZoomFactor(normalizeZoomFactor(payload)))
+  registerHandler(ELECTRON_IPC_CHANNELS.voiceTranscribe, (_event, payload) =>
+    transcribeWithVolcano(payload as VoiceTranscribeInput))
+  registerHandler(ELECTRON_IPC_CHANNELS.voiceSynthesize, (_event, payload) =>
+    synthesizeWithVolcano(payload as VoiceSynthesizeInput))
+  registerHandler(ELECTRON_IPC_CHANNELS.voiceHealth, (_event, payload) =>
+    volcanoVoiceHealth(payload as VoiceHealthInput))
 }
 
 async function createMainWindow() {

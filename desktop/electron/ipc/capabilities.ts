@@ -63,6 +63,24 @@ const urlWithOptionalBounds: Validator = value =>
 
 const zoomPayload: Validator = value => typeof value === 'number' && Number.isFinite(value)
 
+const voiceTranscribe: Validator = value =>
+  isRecord(value)
+  && typeof value.apiKey === 'string'
+  && value.apiKey.length > 0
+  && value.pcm instanceof ArrayBuffer
+
+const voiceSynthesize: Validator = value =>
+  isRecord(value)
+  && typeof value.apiKey === 'string'
+  && value.apiKey.length > 0
+  && typeof value.text === 'string'
+  && value.text.length > 0
+
+const voiceHealth: Validator = value =>
+  isRecord(value)
+  && typeof value.apiKey === 'string'
+  && value.apiKey.length > 0
+
 const updateCheckOptions: Validator = value => {
   if (value === undefined) return true
   if (!isRecord(value) || !hasOnlyKeys(value, ['proxy'])) return false
@@ -116,6 +134,9 @@ export const ELECTRON_IPC_VALIDATORS = {
   [ELECTRON_IPC_CHANNELS.appModeRestart]: noPayload,
   [ELECTRON_IPC_CHANNELS.adaptersRestartSidecar]: noPayload,
   [ELECTRON_IPC_CHANNELS.zoomSet]: zoomPayload,
+  [ELECTRON_IPC_CHANNELS.voiceTranscribe]: voiceTranscribe,
+  [ELECTRON_IPC_CHANNELS.voiceSynthesize]: voiceSynthesize,
+  [ELECTRON_IPC_CHANNELS.voiceHealth]: voiceHealth,
 } satisfies Record<ElectronIpcChannel, Validator>
 
 const allowedChannels = new Set<ElectronIpcChannel>(

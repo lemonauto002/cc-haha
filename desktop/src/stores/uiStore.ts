@@ -35,6 +35,7 @@ export type SettingsTab =
   | 'h5Access'
   | 'adapters'
   | 'terminal'
+  | 'voice'
   | 'mcp'
   | 'agents'
   | 'skills'
